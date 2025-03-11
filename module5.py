@@ -8,13 +8,6 @@ import datetime
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-# Monkey patching first
-import openai
-def _mock_get_default_openai_client(*args, **kwargs):
-    return None
-openai.AsyncOpenAI._get_default_openai_client = _mock_get_default_openai_client
-openai.OpenAI._get_default_openai_client = _mock_get_default_openai_client
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -119,47 +112,34 @@ class DetailedLoggingHooks(AgentHooks):
         self.logger = logger
         self.verbose_logger = verbose_logger
 
-    async def before_generate(
-        self, agent: Agent, inputs: List[Dict[str, Any]], context: RunContextWrapper[Any]
+    async def on_start(
+        self, context: RunContextWrapper[Any], agent: Agent
     ):
         """Log details before LLM generation."""
-        inputs_json = json.dumps(inputs, indent=2)
-        
-        # Log to verbose logger without truncation
-        self.verbose_logger.info(f"===== API CALL: {agent.name} =====")
-        self.verbose_logger.info(f"Full inputs to {agent.name}: {inputs_json}")
-        
-        # Log truncated version to regular logger
-        self.logger.info(f"===== API CALL: {agent.name} =====")
-        if len(inputs_json) > 5000:
-            truncated = inputs_json[:5000] + "... [truncated, full inputs in verbose log]"
-            self.logger.info(f"Inputs to {agent.name}: {truncated}")
-        else:
-            self.logger.info(f"Inputs to {agent.name}: {inputs_json}")
-        
-        return inputs
+        log_info(f"===== API CALL: {agent.name} =====")
+        log_info(f"Starting agent: {agent.name}")
+        return
     
-    async def after_generate(
-        self, agent: Agent, response: Any, context: RunContextWrapper[Any]
+    async def on_end(
+        self, context: RunContextWrapper[Any], agent: Agent, output: Any
     ):
         """Log details after LLM generation."""
-        self.verbose_logger.info(f"===== API RESPONSE: {agent.name} =====")
-        self.logger.info(f"===== API RESPONSE: {agent.name} =====")
+        log_info(f"===== API RESPONSE: {agent.name} =====")
         
         # Format the response for better readability
         try:
-            if hasattr(response, 'final_output'):
+            if hasattr(output, 'final_output'):
                 # Handle different response types with sanitization
-                if hasattr(response.final_output, 'revised_text'):
-                    response.final_output.revised_text = sanitize_text(response.final_output.revised_text)
-                if hasattr(response.final_output, 'reasoning'):
-                    response.final_output.reasoning = sanitize_text(response.final_output.reasoning)
-                if hasattr(response.final_output, 'feedback'):
-                    response.final_output.feedback = sanitize_text(response.final_output.feedback)
-                if hasattr(response.final_output, 'criteria_fulfillment'):
-                    response.final_output.criteria_fulfillment = sanitize_text(response.final_output.criteria_fulfillment)
+                if hasattr(output.final_output, 'revised_text'):
+                    output.final_output.revised_text = sanitize_text(output.final_output.revised_text)
+                if hasattr(output.final_output, 'reasoning'):
+                    output.final_output.reasoning = sanitize_text(output.final_output.reasoning)
+                if hasattr(output.final_output, 'feedback'):
+                    output.final_output.feedback = sanitize_text(output.final_output.feedback)
+                if hasattr(output.final_output, 'criteria_fulfillment'):
+                    output.final_output.criteria_fulfillment = sanitize_text(output.final_output.criteria_fulfillment)
                 
-                response_content = json.dumps(response.final_output, indent=2) 
+                response_content = json.dumps(output.final_output, indent=2) 
                 
                 # Log to verbose logger always
                 self.verbose_logger.info(f"Response from {agent.name}: {response_content}")
@@ -171,14 +151,14 @@ class DetailedLoggingHooks(AgentHooks):
                 else:
                     self.logger.info(f"Response from {agent.name}: {response_content}")
             else:
-                self.logger.info(f"Response from {agent.name}: {str(response)}")
-                self.verbose_logger.info(f"Response from {agent.name}: {str(response)}")
+                self.logger.info(f"Response from {agent.name}: {str(output)}")
+                self.verbose_logger.info(f"Response from {agent.name}: {str(output)}")
         except Exception as e:
-            self.logger.info(f"Response from {agent.name}: {str(response)}")
+            self.logger.info(f"Response from {agent.name}: {str(output)}")
             self.logger.info(f"Could not format response as JSON: {e}")
-            self.verbose_logger.info(f"Response from {agent.name}: {str(response)}")
+            self.verbose_logger.info(f"Response from {agent.name}: {str(output)}")
             self.verbose_logger.info(f"Could not format response as JSON: {e}")
-        return response
+        return output
 
 # Create logging hooks
 logging_hooks = DetailedLoggingHooks(logger, verbose_logger)
@@ -390,7 +370,7 @@ refine_revision_agent = Agent(
 )
 
 async def validate_module5_output(
-    agent: Agent, agent_output: Any, context: RunContextWrapper[None]
+    context: RunContextWrapper[None], agent: Agent, agent_output: Any
 ) -> GuardrailFunctionOutput:
     """Validates the output of Module 5."""
     try:

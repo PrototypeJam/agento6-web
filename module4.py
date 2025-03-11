@@ -8,13 +8,6 @@ import datetime
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-# Monkey patching first
-import openai
-def _mock_get_default_openai_client(*args, **kwargs):
-    return None
-openai.AsyncOpenAI._get_default_openai_client = _mock_get_default_openai_client
-openai.OpenAI._get_default_openai_client = _mock_get_default_openai_client
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -34,6 +27,9 @@ def setup_logging(module_name):
     # Create a timestamp for the log filename
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_file = os.path.join(logs_dir, f"{module_name}_{timestamp}.log")
+    
+    # Also create a verbose log file that captures everything
+    verbose_log_file = os.path.join(logs_dir, f"{module_name}_verbose_{timestamp}.log")
     
     # Configure logging
     logger = logging.getLogger(module_name)
@@ -57,10 +53,33 @@ def setup_logging(module_name):
     file_handler.setFormatter(file_format)
     logger.addHandler(file_handler)
     
-    return logger
+    # Verbose logger (no truncation)
+    verbose_logger = logging.getLogger(f"{module_name}_verbose")
+    verbose_logger.setLevel(logging.INFO)
+    if verbose_logger.handlers:
+        verbose_logger.handlers = []
+    verbose_file_handler = logging.FileHandler(verbose_log_file)
+    verbose_file_handler.setLevel(logging.INFO)
+    verbose_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    verbose_file_handler.setFormatter(verbose_format)
+    verbose_logger.addHandler(verbose_file_handler)
+    
+    return logger, verbose_logger
 
-# Initialize logger
-logger = setup_logging("module4")
+# Initialize loggers
+logger, verbose_logger = setup_logging("module4")
+
+# Helper function to log to both loggers
+def log_info(message, truncate=False, max_length=5000):
+    # Always log full message to verbose
+    verbose_logger.info(message)
+    
+    # Optionally truncate for regular log
+    if truncate and len(message) > max_length:
+        truncated = message[:max_length] + f"... [truncated, full message in verbose log]"
+        logger.info(truncated)
+    else:
+        logger.info(message)
 
 # --- Text Validation Functions ---
 def sanitize_text(text: str) -> str:
@@ -87,44 +106,61 @@ def sanitize_text(text: str) -> str:
 
 # --- Custom Agent Hooks for Detailed Logging ---
 class DetailedLoggingHooks(AgentHooks):
-    def __init__(self, logger):
+    def __init__(self, logger, verbose_logger):
         self.logger = logger
+        self.verbose_logger = verbose_logger
 
-    async def before_generate(
-        self, agent: Agent, inputs: List[Dict[str, Any]], context: RunContextWrapper[Any]
+    async def on_start(
+        self, context: RunContextWrapper[Any], agent: Agent
     ):
         """Log details before LLM generation."""
-        self.logger.info(f"===== API CALL: {agent.name} =====")
-        self.logger.info(f"Inputs to {agent.name}: {json.dumps(inputs, indent=2)}")
-        return inputs
+        log_info(f"===== API CALL: {agent.name} =====")
+        log_info(f"Starting agent: {agent.name}")
+        return
     
-    async def after_generate(
-        self, agent: Agent, response: Any, context: RunContextWrapper[Any]
+    async def on_end(
+        self, context: RunContextWrapper[Any], agent: Agent, output: Any
     ):
         """Log details after LLM generation."""
-        self.logger.info(f"===== API RESPONSE: {agent.name} =====")
+        log_info(f"===== API RESPONSE: {agent.name} =====")
+        
         # Format the response for better readability
         try:
-            if hasattr(response, 'final_output'):
+            if hasattr(output, 'final_output'):
                 # Handle different response types
-                if hasattr(response.final_output, 'revision_request_content'):
-                    response.final_output.revision_request_content = sanitize_text(response.final_output.revision_request_content)
-                if hasattr(response.final_output, 'reasoning'):
-                    response.final_output.reasoning = sanitize_text(response.final_output.reasoning)
-                if hasattr(response.final_output, 'impact_assessment'):
-                    response.final_output.impact_assessment = sanitize_text(response.final_output.impact_assessment)
+                if hasattr(output.final_output, 'revision_request_content'):
+                    output.final_output.revision_request_content = sanitize_text(output.final_output.revision_request_content)
+                if hasattr(output.final_output, 'reasoning'):
+                    output.final_output.reasoning = sanitize_text(output.final_output.reasoning)
+                if hasattr(output.final_output, 'impact_assessment'):
+                    output.final_output.impact_assessment = sanitize_text(output.final_output.impact_assessment)
                 
-                response_content = json.dumps(response.final_output, indent=2) 
-                self.logger.info(f"Response from {agent.name}: {response_content}")
+                response_content = json.dumps(output.final_output, indent=2) 
+                log_info(f"Response from {agent.name}: {response_content}", truncate=True)
             else:
-                self.logger.info(f"Response from {agent.name}: {str(response)}")
+                log_info(f"Response from {agent.name}: {str(output)}")
         except Exception as e:
-            self.logger.info(f"Response from {agent.name}: {str(response)}")
-            self.logger.info(f"Could not format response as JSON: {e}")
-        return response
+            log_info(f"Response from {agent.name}: {str(output)}")
+            log_info(f"Could not format response as JSON: {e}")
+        return output
+
+    async def on_tool_start(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any
+    ):
+        """Called before a tool is invoked."""
+        log_info(f"===== TOOL CALL: {agent.name} =====")
+        log_info(f"Tool being called by {agent.name}: {tool}")
+        return
+
+    async def on_tool_end(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any, result: str
+    ):
+        """Called after a tool is invoked."""
+        log_info(f"Tool result for {agent.name}: {result}", truncate=True)
+        return result
 
 # Create logging hooks
-logging_hooks = DetailedLoggingHooks(logger)
+logging_hooks = DetailedLoggingHooks(logger, verbose_logger)
 
 # --- Pydantic Models ---
 class SuccessCriteria(BaseModel):
@@ -286,19 +322,22 @@ evaluate_revision_agent = Agent(
 )
 
 async def validate_module4_output(
-    agent: Agent, agent_output: Any, context: RunContextWrapper[None]
+    context: RunContextWrapper[None], agent: Agent, agent_output: Any
 ) -> GuardrailFunctionOutput:
     """Validates the output of Module 4."""
     try:
-        logger.info("Validating Module 4 output...")
+        log_info("Validating Module 4 output...")
         # Log only a truncated version of the output to avoid excessive logging
         truncated_output = {k: v for k, v in agent_output.model_dump().items() if k not in ['expanded_outline', 'evaluation_results']}
-        logger.info(f"Output to validate (truncated): {json.dumps(truncated_output, indent=2)}")
+        log_info(f"Output to validate (truncated): {json.dumps(truncated_output, indent=2)}", truncate=True)
+        verbose_logger.info(f"Full output to validate: {json.dumps(agent_output.model_dump(), indent=2)}")
+        
         Module4Output.model_validate(agent_output)
-        logger.info("Module 4 output validation passed")
+        log_info("Module 4 output validation passed")
         return GuardrailFunctionOutput(output_info=None, tripwire_triggered=False)
     except ValidationError as e:
         logger.error(f"Module 4 output validation failed: {e}")
+        verbose_logger.error(f"Module 4 output validation failed: {e}")
         return GuardrailFunctionOutput(
             output_info={"error": str(e)}, tripwire_triggered=True
         )
@@ -309,19 +348,12 @@ def get_original_evaluation_summary(
 ) -> Dict[str, str]:
     """Create a summary of original evaluation results for a specific item."""
     summary = {}
-    
+    item_title_lower = item_title.lower()
+
     for result in evaluation_results:
-        criterion = result.criteria.criteria
-        # Find results that mention this item in their reasoning
-        if item_title.lower() in result.reasoning.lower():
-            summary[criterion] = result.result
-    
-    # If no results were found, assume this is a general result without item specifics
-    if not summary:
-        for result in evaluation_results:
-            criterion = result.criteria.criteria
-            if criterion not in summary:
-                summary[criterion] = "unknown"
+        # Check if the reasoning contains the item title (case-insensitive)
+        if item_title_lower in result.reasoning.lower():
+            summary[result.criteria.criteria] = result.result
     
     return summary
 
@@ -339,7 +371,7 @@ async def process_item_for_revision(
     item_title = item.item_title
     item_description = item.item_description
     
-    logger.info(f"Processing item for revision: {item_title}")
+    log_info(f"Processing item for revision: {item_title}")
     
     # Format criteria for input
     criteria_json = json.dumps([c.model_dump() for c in selected_criteria], indent=2)
@@ -352,15 +384,55 @@ async def process_item_for_revision(
     
     # Create a summary of the original evaluations
     original_evaluation = get_original_evaluation_summary(item_title, evaluation_results)
-    logger.info(f"Original evaluation summary for {item_title}: {json.dumps(original_evaluation, indent=2)}")
+    log_info(f"Original evaluation summary for {item_title}: {json.dumps(original_evaluation, indent=2)}")
     
-    # Prepare failed criteria info
-    failed_criteria = [eval_result for eval_result in evaluation_results 
-                      if eval_result.result == "fail" and item_title.lower() in eval_result.reasoning.lower()]
+    # Prepare failed criteria info - Check only for 'fail' result
+    failed_criteria = [eval_result for eval_result in evaluation_results if eval_result.result == "fail"]
     
-    # Check if any criteria failed for this item
+    # Check if any criteria failed at all
     if not failed_criteria:
-        logger.info(f"No failed criteria for {item_title}, skipping revision request")
+        log_info(f"No failed criteria for {item_title}, skipping revision request")
+        return ItemDetail(
+            item_title=item_title,
+            original_evaluation=original_evaluation,
+            revision_request=None,
+            revision_evaluation=None
+        )
+
+    # Format evaluation results for input
+    evaluations_text = "\n\n".join([
+        f"Criterion: {eval_result.criteria.criteria}\n"
+        f"Result: {eval_result.result}\n"
+        f"Reasoning: {eval_result.reasoning}"
+        for eval_result in evaluation_results
+    ])
+    
+    # Create input for criteria assessment agent
+    assessment_input = (
+        f"Goal: {goal}\n\n"
+        f"Success Criteria:\n{criteria_json}\n\n"
+        f"Plan Item Title: {item_title}\n\n"
+        f"Plan Item Description:\n{item_description}\n\n"
+        f"Evaluation Results:\n{evaluations_text}\n\n"
+        f"Analyze if any revisions are needed to this specific plan item "
+        f"to better address any of the criteria, particularly those marked as 'fail'. "
+        f"Consider how this specific plan item could better contribute to meeting the fail criteria. "
+        f"If no revision is needed for this specific item, return an empty string."
+    )
+    
+    log_info(f"Criteria assessment input for {item_title} (first 5000 chars): {assessment_input[:5000]}...")
+
+    # Run criteria assessment agent
+    assessment_result = await Runner.run(
+        criteria_assessment_agent,
+        input=assessment_input,
+        context=context,
+    )
+    assessment = assessment_result.final_output
+    
+    # Check if criteria assessment returned an empty string (meaning no revision)
+    if isinstance(assessment, str) and not assessment.strip():
+        logger.info(f"Criteria assessment indicates no revisions needed for {item_title}")
         return ItemDetail(
             item_title=item_title,
             original_evaluation=original_evaluation,
@@ -368,14 +440,7 @@ async def process_item_for_revision(
             revision_evaluation=None
         )
     
-    # Format evaluation results for input
-    evaluations_text = "\n\n".join([
-        f"Criterion: {eval_result.criteria.criteria}\n"
-        f"Result: {eval_result.result}\n"
-        f"Reasoning: {eval_result.reasoning}"
-        for eval_result in evaluation_results 
-        if item_title.lower() in eval_result.reasoning.lower()
-    ])
+    log_info(f"Criteria assessment for {item_title} suggests revisions are needed: {assessment[:200]}...")
     
     # Create input for revision requester
     revision_input = (
@@ -384,12 +449,14 @@ async def process_item_for_revision(
         f"Plan Item Title: {item_title}\n\n"
         f"Plan Item Description:\n{item_description}\n\n"
         f"Evaluation Results:\n{evaluations_text}\n\n"
+        f"Criteria Assessment:\n{assessment}\n\n"
         f"Based on the above, identify ONE specific revision that would help this item "
         f"better address the failed criteria. Be specific and actionable. "
+        f"Your revision should focus on this specific plan item and how it can be improved. "
         f"If no revision is needed, return an empty string."
     )
     
-    logger.info(f"Revision request input for {item_title} (first 5000 chars): {revision_input[:5000]}...")
+    log_info(f"Revision request input for {item_title} (first 5000 chars): {revision_input[:5000]}...")
     
     # Get revision request
     revision_result = await Runner.run(
@@ -402,7 +469,7 @@ async def process_item_for_revision(
     
     # If empty string response or not a RevisionRequest object, no revision needed
     if isinstance(revision_request, str) and not revision_request:
-        logger.info(f"No revision requested for {item_title}")
+        log_info(f"No revision requested for {item_title}")
         return ItemDetail(
             item_title=item_title,
             original_evaluation=original_evaluation,
@@ -410,7 +477,8 @@ async def process_item_for_revision(
             revision_evaluation=None
         )
     
-    logger.info(f"Revision requested for {item_title}: {revision_request.revision_request_content[:200]}...")
+    log_info(f"Revision requested for {item_title}: {revision_request.revision_request_content[:200]}...")
+    verbose_logger.info(f"Full revision requested: {revision_request.revision_request_content}")
     
     # Create input for evaluation
     evaluation_input = (
@@ -427,7 +495,7 @@ async def process_item_for_revision(
         f"Format your impact assessment as a list with each criterion on its own line."
     )
     
-    logger.info(f"Revision evaluation input for {item_title} (first 5000 chars): {evaluation_input[:5000]}...")
+    log_info(f"Revision evaluation input for {item_title} (first 5000 chars): {evaluation_input[:5000]}...")
     
     # Evaluate the revision
     evaluation_result = await Runner.run(
@@ -437,8 +505,8 @@ async def process_item_for_revision(
     )
     
     revision_evaluation = evaluation_result.final_output
-    logger.info(f"Revision evaluation for {item_title}: {revision_evaluation.approved} - {revision_evaluation.reasoning[:200]}...")
-    logger.info(f"Impact assessment for {item_title}: {revision_evaluation.impact_assessment}")
+    log_info(f"Revision evaluation for {item_title}: {revision_evaluation.approved} - {revision_evaluation.reasoning[:200]}...")
+    log_info(f"Impact assessment for {item_title}: {revision_evaluation.impact_assessment}")
     
     # Return the item detail with revision information
     return ItemDetail(
@@ -486,10 +554,10 @@ async def run_module_4(input_file: str, output_file: str) -> None:
     context = RunContextWrapper(context=None)
 
     try:
-        logger.info(f"Starting Module 4, reading input from {input_file}")
+        log_info(f"Starting Module 4, reading input from {input_file}")
         with open(input_file, "r") as f:
             module_3_data = json.load(f)
-            logger.info(f"Successfully loaded data from {input_file}")
+            log_info(f"Successfully loaded data from {input_file}")
 
         # Convert to Pydantic objects
         module_3_output = Module3Output.model_validate(module_3_data)
@@ -499,15 +567,15 @@ async def run_module_4(input_file: str, output_file: str) -> None:
         expanded_outline = module_3_output.expanded_outline
         evaluation_results = module_3_output.evaluation_results
         
-        logger.info(f"Goal: {goal}")
-        logger.info(f"Number of selected criteria: {len(selected_criteria)}")
+        log_info(f"Goal: {goal}")
+        log_info(f"Number of selected criteria: {len(selected_criteria)}")
         for i, criterion in enumerate(selected_criteria):
-            logger.info(f"Criterion {i+1}: {criterion.criteria}")
+            log_info(f"Criterion {i+1}: {criterion.criteria}")
         
-        logger.info(f"Original Criteria Summary: {json.dumps(module_3_output.criteria_summary, indent=2)}")
+        log_info(f"Original Criteria Summary: {json.dumps(module_3_output.criteria_summary, indent=2)}")
         
         # Process each item sequentially for revision
-        logger.info("Processing items for potential revisions...")
+        log_info("Processing items for potential revisions...")
         item_details = []
         
         for i, item in enumerate(expanded_outline.plan_items):
@@ -522,14 +590,14 @@ async def run_module_4(input_file: str, output_file: str) -> None:
             )
             
             item_details.append(item_detail)
-            logger.info(f"Completed processing item {i+1}: {item.item_title}")
+            log_info(f"Completed processing item {i+1}: {item.item_title}")
         
         # Generate criteria coverage summary
         criteria_coverage = generate_criteria_coverage_summary(evaluation_results, item_details)
-        logger.info(f"Criteria coverage summary: {json.dumps(criteria_coverage, indent=2)}")
+        log_info(f"Criteria coverage summary: {json.dumps(criteria_coverage, indent=2)}")
         
         # Create the output object
-        logger.info("Creating Module 4 output object")
+        log_info("Creating Module 4 output object")
         module_4_output = Module4Output(
             goal=goal,
             selected_criteria=selected_criteria,
@@ -541,7 +609,7 @@ async def run_module_4(input_file: str, output_file: str) -> None:
         )
 
         # Apply guardrail
-        logger.info("Applying output guardrail...")
+        log_info("Applying output guardrail...")
         guardrail = OutputGuardrail(guardrail_function=validate_module4_output)
         guardrail_result = await guardrail.run(
             agent=evaluate_revision_agent,
@@ -551,6 +619,7 @@ async def run_module_4(input_file: str, output_file: str) -> None:
         
         if guardrail_result.output.tripwire_triggered:
             logger.error(f"Guardrail failed: {guardrail_result.output.output_info}")
+            verbose_logger.error(f"Guardrail failed: {guardrail_result.output.output_info}")
             return  # Exit if validation fails
 
         # --- Smart JSON Export ---
@@ -570,23 +639,26 @@ async def run_module_4(input_file: str, output_file: str) -> None:
         with open(timestamped_file, "w") as f:
             json.dump(module_4_output.model_dump(), f, indent=4)
         
-        logger.info(f"Module 4 completed. Output saved to {output_file}")
-        logger.info(f"Timestamped output saved to {timestamped_file}")
+        log_info(f"Module 4 completed. Output saved to {output_file}")
+        log_info(f"Timestamped output saved to {timestamped_file}")
 
     except Exception as e:
         logger.error(f"An error occurred in Module 4: {e}")
+        verbose_logger.error(f"An error occurred in Module 4: {e}")
         import traceback
-        logger.error(traceback.format_exc())  # Log the full stack trace
+        error_trace = traceback.format_exc()
+        logger.error(error_trace)
+        verbose_logger.error(error_trace)  # Log the full stack trace
 
 async def main():
-    logger.info("Starting main function")
+    log_info("Starting main function")
     input_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
     input_file = os.path.join(input_dir, "module3_output.json")
     output_file = os.path.join(input_dir, "module4_output.json")
     await run_module_4(input_file, output_file)
-    logger.info("Main function completed")
+    log_info("Main function completed")
 
 if __name__ == "__main__":
-    logger.info("Module 4 script starting")
+    log_info("Module 4 script starting")
     asyncio.run(main())
-    logger.info("Module 4 script completed")
+    log_info("Module 4 script completed")

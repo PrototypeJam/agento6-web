@@ -8,13 +8,6 @@ import datetime
 import re
 from typing import Any, List, Dict, Tuple, Optional
 
-# Monkey patching first
-import openai
-def _mock_get_default_openai_client(*args, **kwargs):
-    return None
-openai.AsyncOpenAI._get_default_openai_client = _mock_get_default_openai_client
-openai.OpenAI._get_default_openai_client = _mock_get_default_openai_client
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -90,34 +83,48 @@ class DetailedLoggingHooks(AgentHooks):
     def __init__(self, logger):
         self.logger = logger
 
-    async def before_generate(
-        self, agent: Agent, inputs: List[Dict[str, Any]], context: RunContextWrapper[Any]
+    async def on_start(
+        self, context: RunContextWrapper[Any], agent: Agent
     ):
         """Log details before LLM generation."""
         self.logger.info(f"===== API CALL: {agent.name} =====")
-        self.logger.info(f"Inputs to {agent.name}: {json.dumps(inputs, indent=2)}")
-        return inputs
+        self.logger.info(f"Starting agent: {agent.name}")
+        return
     
-    async def after_generate(
-        self, agent: Agent, response: Any, context: RunContextWrapper[Any]
+    async def on_end(
+        self, context: RunContextWrapper[Any], agent: Agent, output: Any
     ):
         """Log details after LLM generation."""
         self.logger.info(f"===== API RESPONSE: {agent.name} =====")
         # Format the response for better readability
         try:
-            if hasattr(response, 'final_output'):
+            if hasattr(output, 'final_output'):
                 # For expanded items, sanitize the text
-                if hasattr(response.final_output, 'expanded_text'):
-                    response.final_output.expanded_text = sanitize_text(response.final_output.expanded_text)
+                if hasattr(output.final_output, 'expanded_text'):
+                    output.final_output.expanded_text = sanitize_text(output.final_output.expanded_text)
                 
-                response_content = json.dumps(response.final_output, indent=2) 
+                response_content = json.dumps(output.final_output, indent=2) 
                 self.logger.info(f"Response from {agent.name}: {response_content}")
             else:
-                self.logger.info(f"Response from {agent.name}: {str(response)}")
+                self.logger.info(f"Response from {agent.name}: {str(output)}")
         except Exception as e:
-            self.logger.info(f"Response from {agent.name}: {str(response)}")
+            self.logger.info(f"Response from {agent.name}: {str(output)}")
             self.logger.info(f"Could not format response as JSON: {e}")
-        return response
+        return output
+
+    async def on_tool_start(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any
+    ):
+        """Called before a tool is invoked."""
+        self.logger.info(f"Tool being called by {agent.name}: {tool}")
+        return
+
+    async def on_tool_end(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any, result: str
+    ):
+        """Called after a tool is invoked."""
+        self.logger.info(f"Tool result for {agent.name}: {result}")
+        return result
 
 # Create logging hooks
 logging_hooks = DetailedLoggingHooks(logger)
@@ -231,7 +238,7 @@ evaluate_item_agent = Agent(
 )
 
 async def validate_module3_output(
-    agent: Agent, agent_output: Any, context: RunContextWrapper[None]
+    context: RunContextWrapper[None], agent: Agent, agent_output: Any
 ) -> GuardrailFunctionOutput:
     """Validates the output of Module 3."""
     try:

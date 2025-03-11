@@ -6,13 +6,6 @@ import logging
 import datetime
 from typing import Any, List, Dict, Optional
 
-# Monkey patching first
-import openai
-def _mock_get_default_openai_client(*args, **kwargs):
-    return None
-openai.AsyncOpenAI._get_default_openai_client = _mock_get_default_openai_client
-openai.OpenAI._get_default_openai_client = _mock_get_default_openai_client
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -66,27 +59,41 @@ class DetailedLoggingHooks(AgentHooks):
     def __init__(self, logger):
         self.logger = logger
 
-    async def before_generate(
-        self, agent: Agent, inputs: List[Dict[str, Any]], context: RunContextWrapper[Any]
+    async def on_start(
+        self, context: RunContextWrapper[Any], agent: Agent
     ):
         """Log details before LLM generation."""
         self.logger.info(f"===== API CALL: {agent.name} =====")
-        self.logger.info(f"Inputs to {agent.name}: {json.dumps(inputs, indent=2)}")
-        return inputs
+        self.logger.info(f"Starting agent: {agent.name}")
+        return 
     
-    async def after_generate(
-        self, agent: Agent, response: Any, context: RunContextWrapper[Any]
+    async def on_end(
+        self, context: RunContextWrapper[Any], agent: Agent, output: Any
     ):
         """Log details after LLM generation."""
         self.logger.info(f"===== API RESPONSE: {agent.name} =====")
         # Format the response for better readability
         try:
-            response_content = json.dumps(response.final_output, indent=2) if hasattr(response, 'final_output') else str(response)
+            response_content = json.dumps(output.final_output, indent=2) if hasattr(output, 'final_output') else str(output)
             self.logger.info(f"Response from {agent.name}: {response_content}")
         except Exception as e:
-            self.logger.info(f"Response from {agent.name}: {str(response)}")
+            self.logger.info(f"Response from {agent.name}: {str(output)}")
             self.logger.info(f"Could not format response as JSON: {e}")
-        return response
+        return output
+
+    async def on_tool_start(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any
+    ):
+        """Called before a tool is invoked."""
+        self.logger.info(f"Tool being called by {agent.name}: {tool}")
+        return
+
+    async def on_tool_end(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any, result: str
+    ):
+        """Called after a tool is invoked."""
+        self.logger.info(f"Tool result for {agent.name}: {result}")
+        return result
 
 # Create logging hooks
 logging_hooks = DetailedLoggingHooks(logger)
@@ -245,7 +252,7 @@ evaluate_outline_agent = Agent(
 )
 
 async def validate_module2_output(
-    agent: Agent, agent_output: Any, context: RunContextWrapper[None]
+    context: RunContextWrapper[None], agent: Agent, agent_output: Any
 ) -> GuardrailFunctionOutput:
     """Validates the output of Module 2."""
     try:
@@ -304,7 +311,7 @@ async def run_module_2(input_file: str, output_file: str) -> None:
             # The triage agent should have handed off to a specialized agent
             # Check which agent was used through handoffs
             logger.info("Retrieving plans from specialized agent...")
-            last_agent_name = triage_result.last_agent.name
+            last_agent_name = triage_result.current_agent.name
             logger.info(f"Last agent used: {last_agent_name}")
             
             # Extract the results, which should be a list of PlanOutlines

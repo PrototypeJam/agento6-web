@@ -1,20 +1,20 @@
-# python module1-search.py
+# python module1.py
+
+# uv venv
+# source .venv/bin/activate
+# uv pip install openai-agents
+# uv pip install python-dotenv
+# python module1.py
 
 import asyncio
 import json
 import os
 import logging
 import datetime
-import re  # Import the 're' module
-from typing import Any, List, Dict
+import re
+from typing import Any, List, Dict, Optional
 
-# Monkey patching first
-import openai
-def _mock_get_default_openai_client(*args, **kwargs):
-    return None
-openai.AsyncOpenAI._get_default_openai_client = _mock_get_default_openai_client
-openai.OpenAI._get_default_openai_client = _mock_get_default_openai_client
-
+# Import OpenAI libraries
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -104,8 +104,7 @@ class SuccessCriteria(BaseModel):
     criteria: str
     reasoning: str
     rating: int = Field(..., description="Rating of the criterion (1-10)")
-
-    # Use field_validator instead of ge/le constraints
+    
     @field_validator('rating')
     def check_rating(cls, v):
         if not 1 <= v <= 10:
@@ -129,67 +128,71 @@ class DetailedLoggingHooks(AgentHooks):
         self.logger = logger
         self.verbose_logger = verbose_logger
 
-    async def before_generate(
-        self, agent: Agent, inputs: List[Dict[str, Any]], context: RunContextWrapper[Any]
+    async def on_start(
+        self, context: RunContextWrapper[Any], agent: Agent
     ):
-        """Log details before LLM generation."""
-        inputs_json = json.dumps(inputs, indent=2)
+        """Called before the agent is invoked."""
+        inputs_json = json.dumps(agent.model_dump() if hasattr(agent, 'model_dump') else {"name": agent.name}, indent=2)
         log_info(f"===== API CALL: {agent.name} =====", truncate=True)
-        log_info(f"Inputs to {agent.name}: {inputs_json}", truncate=True)
+        log_info(f"Agent start: {agent.name}", truncate=True)
         self.verbose_logger.info(f"===== API CALL: {agent.name} =====") # Redundant, but consistent
-        self.verbose_logger.info(f"Inputs to {agent.name}: {inputs_json}") # Full input
-        return inputs
+        return
 
-    async def after_generate(
-        self, agent: Agent, response: Any, context: RunContextWrapper[Any]
+    async def on_end(
+        self, context: RunContextWrapper[Any], agent: Agent, output: Any
     ):
-        """Log details after LLM generation."""
+        """Called when the agent produces a final output."""
         log_info(f"===== API RESPONSE: {agent.name} =====", truncate=True)
         self.verbose_logger.info(f"===== API RESPONSE: {agent.name} =====")
 
         try:
-            if hasattr(response, 'final_output'):
+            if hasattr(output, 'final_output'):
                 # Sanitize if the final output has text
-                if isinstance(response.final_output, str):
-                    response.final_output = sanitize_text(response.final_output)
-                elif isinstance(response.final_output, list):
-                    for item in response.final_output:
+                if isinstance(output.final_output, str):
+                    output.final_output = sanitize_text(output.final_output)
+                elif isinstance(output.final_output, list):
+                    for item in output.final_output:
                          if hasattr(item, "criteria"):
                             item.criteria = sanitize_text(item.criteria)
                          if hasattr(item, "reasoning"):
                             item.reasoning = sanitize_text(item.reasoning)
 
-                response_content = json.dumps(response.final_output, indent=2) if hasattr(response, 'final_output') else str(response)
+                response_content = json.dumps(output.final_output, indent=2) if hasattr(output, 'final_output') else str(output)
                 log_info(f"Response from {agent.name}: {response_content}", truncate=True)
                 self.verbose_logger.info(f"Response from {agent.name}: {response_content}")
             else:
-                log_info(f"Response from {agent.name}: {str(response)}", truncate=True)
-                self.verbose_logger.info(f"Response from {agent.name}: {str(response)}")
+                log_info(f"Response from {agent.name}: {str(output)}", truncate=True)
+                self.verbose_logger.info(f"Response from {agent.name}: {str(output)}")
         except Exception as e:
-            log_info(f"Response from {agent.name}: {str(response)}", truncate=True)
+            log_info(f"Response from {agent.name}: {str(output)}", truncate=True)
             log_info(f"Could not format response as JSON: {e}", truncate=True)
-            self.verbose_logger.info(f"Response from {agent.name}: {str(response)}")
+            self.verbose_logger.info(f"Response from {agent.name}: {str(output)}")
             self.verbose_logger.info(f"Could not format response as JSON: {e}")
-        return response
+        return output
 
-    async def after_tool_call(
-        self, agent: Agent, tool_call: Any, tool_result: str, context: RunContextWrapper[Any]
+    async def on_tool_start(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any
     ):
-        """Log details after Tool generation."""
+        """Called before a tool is invoked."""
         log_info(f"===== TOOL CALL: {agent.name} =====", truncate=True)
         self.verbose_logger.info(f"===== TOOL CALL: {agent.name} =====")
+        return
 
+    async def on_tool_end(
+        self, context: RunContextWrapper[Any], agent: Agent, tool: Any, result: str
+    ):
+        """Called after a tool is invoked."""
         try:
-            response_content = json.dumps(tool_result, indent=2)
+            response_content = json.dumps(result, indent=2)
             log_info(f"Tool Result from {agent.name}: {response_content}", truncate=True)
             self.verbose_logger.info(f"Tool Result from {agent.name}: {response_content}")
         except Exception as e:  # JSON decoding might fail
-            log_info(f"Tool Result from {agent.name}: {str(tool_result)}", truncate=True)
-            self.verbose_logger.info(f"Tool Result from {agent.name}: {str(tool_result)}")
+            log_info(f"Tool Result from {agent.name}: {str(result)}", truncate=True)
+            self.verbose_logger.info(f"Tool Result from {agent.name}: {str(result)}")
             log_info(f"Could not format response as JSON: {e}", truncate=True)
             self.verbose_logger.info(f"Could not format response as JSON: {e}")
 
-        return tool_result
+        return result
 
 # Create logging hooks
 logging_hooks = DetailedLoggingHooks(logger, verbose_logger)
@@ -240,7 +243,7 @@ evaluate_criteria_agent = Agent(
 )
 
 async def validate_module1_output(
-    agent: Agent, agent_output: Any, context: RunContextWrapper[None]
+    context: RunContextWrapper[None], agent: Agent, agent_output: Any
 ) -> GuardrailFunctionOutput:
     """Validates the output of Module 1."""
     try:
@@ -373,19 +376,19 @@ async def run_module_1(user_goal: str, output_file: str) -> None:
         # Create data directory if it doesn't exist
         output_dir = os.path.dirname(output_file)
         os.makedirs(output_dir, exist_ok=True)
-
+        
         # Create timestamped version
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = os.path.basename(output_file)
         name, ext = os.path.splitext(filename)
         timestamped_file = os.path.join(output_dir, f"{name}_{timestamp}{ext}")
-
+        
         # Export both versions
         with open(output_file, "w") as f:
             json.dump(module_1_output.model_dump(), f, indent=4)
         with open(timestamped_file, "w") as f:
             json.dump(module_1_output.model_dump(), f, indent=4)
-
+        
         log_info(f"Module 1 completed. Output saved to {output_file}", truncate=True)
         log_info(f"Timestamped output saved to {timestamped_file}", truncate=True)
         verbose_logger.info(f"Module 1 completed. Output saved to {output_file}")
