@@ -132,4 +132,4 @@ This project is meant to demonstrate an approach to agent-based planning that ca
 
 ## License
 
-This project is licensed under MIT License - see the LICENSE file for details.
+This project is licensed under Apache 2 License - see the LICENSE file for details.
