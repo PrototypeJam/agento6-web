@@ -1,7 +1,7 @@
 # OpenAI Agent SDK - Goal-to-Plan Open Source Implementation
 
 ## Overview
-This project demonstrates a flexible, modular agent-based planning system built with the OpenAI Agent SDK. It provides a general approach to transform ANY initial goal or idea into a solid, well-structured plan with iterative refinement and evaluation.  I call this design approach "Agento"
+This project demonstrates a flexible, modular agent-based planning system built with the OpenAI Agent SDK. It provides a general approach to transform ANY initial goal or idea into a solid, well-structured plan with iterative refinement and evaluation.  I call this design approach "Agento" and you can see earlier versions, as well as other resources on the business, legal, and technical aspects of AI agents at [DazzaGreenwood.com](https://www.dazzagreenwood.com/).
 
 OpenAI just launched a new open-source AI Agents SDK and I think it's the best agent framework out there. I was very fortunate to be granted early access and have been playing around with it, building imaginative ideas at nearly the speed of thought because its capabilities are powerful yet it's easy to work with.
 
