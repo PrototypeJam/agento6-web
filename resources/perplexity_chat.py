@@ -11,7 +11,7 @@ import requests
 
 def main():
     # Replace <YOUR_API_KEY> with your actual Perplexity API key
-    api_key = "" 
+    api_key = "<YOUR_API_KEY>" 
     
     # If the user didn’t provide a question as a command-line argument, prompt them
     if len(sys.argv) < 2:
