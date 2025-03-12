@@ -79,24 +79,26 @@ This approach allows developers to leverage the strengths of various agent frame
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/dazzagreenwood/goal-to-plan-agent-system.git
-cd goal-to-plan-agent-system
+git clone https://github.com/dazzaji/agento6.git
+cd agento6
 ```
 
 2. Create a virtual environment:
 ```bash
-python -m venv env
+uv venv
 source env/bin/activate  # On Windows: env\Scripts\activate
 ```
 
 3. Install dependencies:
 ```bash
-pip install -r requirements.txt
+uv pip install openai-agents
+uv pip install python-dotenv
 ```
 
-4. Set your OpenAI API key:
-```bash
-export OPENAI_API_KEY=your_api_key_here
+4. Include your OpenAI API key in .env:
+
+```
+OPENAI_API_KEY=your_api_key_here
 ```
 
 ### Running the Modules
@@ -104,7 +106,7 @@ export OPENAI_API_KEY=your_api_key_here
 You can run each module sequentially:
 
 ```bash
-python module1.py  # Generates success criteria
+python module1.py  # Input your goal or idea and get success criteria
 python module2.py  # Creates and selects a plan
 python module3.py  # Expands and evaluates the plan
 python module4.py  # Identifies needed revisions
@@ -113,7 +115,9 @@ python module5.py  # Implements revisions into a final plan
 
 Each module saves its output to a JSON file in the `data` directory, which serves as input for the next module.
 
-Alternatively, you can run the entire pipeline:
+There is extensive logging for each module as well, saved in a 'logs' directory.
+
+Alternatively, you can create and run the entire pipeline:
 
 ```bash
 python run_pipeline.py
