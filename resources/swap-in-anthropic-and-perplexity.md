@@ -451,7 +451,7 @@ This guide ensures developers have everything needed to swap models, with curren
 
 # Perplexity DeepResearch Follows:
 
-# Comprehensive Integration Guide: Replacing OpenAI GPT-4o with Perplexity and Anthropic Models
+## Comprehensive Integration Guide: Replacing OpenAI GPT-4o with Perplexity and Anthropic Models
 
 ## Introduction
 
