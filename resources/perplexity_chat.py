@@ -1,7 +1,7 @@
 # THIS IS SAMPLE PERPLEXITY CODE TO WORK WITH PERPLEXITY API 
 # Sent up venv: python3 -m venv venv
 # Activate venv: source venv/bin/activate
-# RUN: python perplexity_chat.py "Why is Grok 3 garnering so much attention right now?" 
+# RUN: python perplexity_chat.py "Why is OpenAI Agents SDK garnering so much attention right now?" 
 
 # pip install requests
 
