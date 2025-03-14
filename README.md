@@ -122,6 +122,9 @@ Alternatively, you can create and run the entire pipeline:
 ```bash
 python run_pipeline.py
 ```
+## Making Your Life Easier with a Ready-to-Go Single File
+
+To get you started fast, I’ve packed all of the OpenAI Agent SDK code and docs into one ready-to-use file. Just add or attach it to your LLM prompts for a seamless custom-agent-building experience. Grab the total Agent SDK in one file right [here](https://raw.githubusercontent.com/dazzaji/agento6/refs/heads/main/openai_openai-agents-python.md)!
 
 ## Contribution and Extension
 
