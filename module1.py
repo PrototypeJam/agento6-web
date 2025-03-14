@@ -4,7 +4,12 @@
 # source .venv/bin/activate
 # uv pip install openai-agents
 # uv pip install python-dotenv
-# python module1.py
+# python module1.py  # Input your goal or idea and get success criteria
+# python module2.py  # Creates and selects a plan
+# python module3.py  # Expands and evaluates the plan
+# python module4.py  # Identifies needed revisions
+# python module5.py  # Implements revisions into a final plan
+# python module6.py  # Generate easy to read markdown of final plan
 
 import asyncio
 import json

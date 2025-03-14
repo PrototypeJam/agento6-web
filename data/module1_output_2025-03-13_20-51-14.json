@@ -1,0 +1,47 @@
+{
+    "goal": "An app that takes a user\u2019s obscure interests (e.g., vintage typewriters, urban foraging) and scours the web and X for under-the-radar podcasts, delivering a curated list with summaries and direct links. The LLM designs a sleek, searchable interface with a \u201csurprise me\u201d button, deploys it as a free app with premium filters, and aims to hook audio enthusiasts tired of mainstream picks.",
+    "success_criteria": [
+        {
+            "criteria": "Active Users Growth (10% monthly increase)",
+            "reasoning": "This metric will show how well the app is attracting new users and retaining existing ones, directly reflecting its popularity and appeal.",
+            "rating": 9
+        },
+        {
+            "criteria": "Average Session Duration of 5 minutes or more",
+            "reasoning": "Indicates app engagement and content relevancy. Longer sessions suggest users are exploring and enjoying the curated content.",
+            "rating": 8
+        },
+        {
+            "criteria": "50% Increase in 'Surprise Me' Button Clicks",
+            "reasoning": "Reflects user interest in discovering new content, which is a core feature showcasing the app's unique selling point.",
+            "rating": 7
+        },
+        {
+            "criteria": "10% Monthly Retention Rate Improvement",
+            "reasoning": "A higher retention rate shows users are satisfied with the app's offerings, suggesting successful content personalization and engagement.",
+            "rating": 9
+        },
+        {
+            "criteria": "Conversion Rate of 5% from Free to Premium",
+            "reasoning": "Indicates the app's content is valuable enough for users to invest in premium features, ensuring financial sustainability.",
+            "rating": 8
+        }
+    ],
+    "selected_criteria": [
+        {
+            "criteria": "Active Users Growth (10% monthly increase)",
+            "reasoning": "This criterion effectively captures the app's success in attracting a broad user base, which is crucial for the long-term viability of the platform. A steady increase in active users indicates that the app is gaining traction, expanding its reach among audio enthusiasts seeking unique content. This growth also suggests effective marketing and user acquisition strategies.",
+            "rating": 9
+        },
+        {
+            "criteria": "Average Session Duration of 5 minutes or more",
+            "reasoning": "This metric shows how engaging and relevant the app's content is to the users. A longer session duration signifies that users are spending more time exploring the app, suggesting that the curated lists are intriguing and worth their time. This is essential for retaining users and encouraging them to explore less mainstream podcasts.",
+            "rating": 8
+        },
+        {
+            "criteria": "10% Monthly Retention Rate Improvement",
+            "reasoning": "Retention is a critical marker of user satisfaction and app quality. An improvement in retention rate indicates that users find ongoing value in the app, which reflects the effectiveness of content personalization. This is significant for ensuring a loyal user base that consistently returns to the app to discover new podcasts.",
+            "rating": 9
+        }
+    ]
+}
