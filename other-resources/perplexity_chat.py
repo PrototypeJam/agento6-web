@@ -1,7 +1,7 @@
 # THIS IS SAMPLE PERPLEXITY CODE TO WORK WITH PERPLEXITY API 
 # Sent up venv: python3 -m venv venv
 # Activate venv: source venv/bin/activate
-# RUN: python perplexity_chat.py "Why is Grok 3 garnering so much attention right now?" 
+# RUN: python perplexity_chat.py "Why is OpenAI Agents SDK garnering so much attention right now?" 
 
 # pip install requests
 
@@ -11,7 +11,7 @@ import requests
 
 def main():
     # Replace <YOUR_API_KEY> with your actual Perplexity API key
-    api_key = "" 
+    api_key = "<YOUR_API_KEY>" 
     
     # If the user didn’t provide a question as a command-line argument, prompt them
     if len(sys.argv) < 2:

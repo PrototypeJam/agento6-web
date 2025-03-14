@@ -1,27 +1,10 @@
-# NOTES ON SWAPPING IN ANTHROPIC AND PERPLEXITY APIs FOR AGENTO CODE
+# NOTES ON SWAPPING IN ANTHROPIC AND PERPLEXITY APIs FOR GPT-4o IN AGENTO MODULES
 
 -----
 
 # OpenAI DeepResearch Follows:
 
-Got it! I will research and compile a detailed report covering:
-
-1. **Credible and current sources** for Perplexity and Anthropic API usage.
-2. **Error handling strategies** for robust API calls.
-3. **Integration with all available Perplexity models** and **Claude-3-7-sonnet-20250219** from Anthropic.
-4. **Complete API documentation** for Perplexity and Anthropic, including:
-   - Making and handling API calls
-   - Rate limits
-   - Key parameters like `temperature`, `top_p`, etc.
-   - Authentication and environment setup
-   - Response structure and parsing
-5. **Best Python packages** for using Perplexity and Anthropic, confirming if `openai` and `anthropic` are ideal, and suggesting alternatives if applicable.
-
-Once the research is complete, you’ll have all the necessary details to swap out GPT-4o in your existing OpenAI-based code for Perplexity and Anthropic models.
-
-I'll update you when it's ready!
-
-# Integrating Perplexity and Anthropic APIs as GPT-4 Alternatives
+## Integrating Perplexity and Anthropic APIs as GPT-4 Alternatives
 
 Migrating a Python application from OpenAI’s GPT-4 to **Perplexity Sonar** and **Anthropic Claude** APIs requires understanding each provider’s documentation, capabilities, and best practices. This guide compiles official information and actionable tips to ensure a seamless integration of Perplexity and Anthropic models as direct replacements for GPT-4.
 
@@ -468,7 +451,7 @@ This guide ensures developers have everything needed to swap models, with curren
 
 # Perplexity DeepResearch Follows:
 
-# Comprehensive Integration Guide: Replacing OpenAI GPT-4o with Perplexity and Anthropic Models
+## Comprehensive Integration Guide: Replacing OpenAI GPT-4o with Perplexity and Anthropic Models
 
 ## Introduction
 
