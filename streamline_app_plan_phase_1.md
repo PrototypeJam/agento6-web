@@ -1,21 +1,21 @@
 I'll implement Phase 1 of the Streamlit app. Let me create the basic multi-page structure with Module 1 functionality.
 
-streamlit_app/
-├── app.py
-├── pages/
-│   ├── 1_🔑_API_Configuration.py
-│   ├── 2_🎯_Module_1_Criteria.py
-│   ├── 3_📋_Module_2_Planning.py
-│   ├── 4_📊_Module_3_Expansion.py
-│   ├── 5_🔧_Module_4_Revision.py
-│   ├── 6_✨_Module_5_Implementation.py
-│   └── 7_📄_Module_6_Report.py
-├── utils/
-│   ├── __init__.py
-│   ├── session_state.py
-│   └── file_handlers.py
-├── requirements.txt
-└── README.md
+streamlit_app/  
+├── app.py  
+├── pages/  
+│   ├── 1_🔑_API_Configuration.py  
+│   ├── 2_🎯_Module_1_Criteria.py  
+│   ├── 3_📋_Module_2_Planning.py  
+│   ├── 4_📊_Module_3_Expansion.py  
+│   ├── 5_🔧_Module_4_Revision.py  
+│   ├── 6_✨_Module_5_Implementation.py  
+│   └── 7_📄_Module_6_Report.py  
+├── utils/  
+│   ├── __init__.py  
+│   ├── session_state.py  
+│   └── file_handlers.py  
+├── requirements.txt  
+└── README.md  
 
 Now, let me create the main app file:
 
